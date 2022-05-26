@@ -1,6 +1,7 @@
 package com.example.springsecuritylearning.security;
 
 import com.example.springsecuritylearning.auth.ApplicationUserService;
+import com.example.springsecuritylearning.jwt.JwtUserNameAndPasswordAuthenticationFilter;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,13 +11,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-
-import java.util.concurrent.TimeUnit;
 
 import static com.example.springsecuritylearning.security.ApplicationUserRole.*;
 
@@ -28,7 +24,7 @@ import static com.example.springsecuritylearning.security.ApplicationUserRole.*;
 public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final PasswordEncoder passwordEncoder;
-    private final ApplicationUserService applcationUserService;
+    private final ApplicationUserService applicationUserService;
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http
@@ -43,6 +39,10 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 //                .and()
                 .csrf().disable()// because we are using postman
+                .sessionManagement()
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // jwts have to be stateless
+                .and()
+                .addFilter(new JwtUserNameAndPasswordAuthenticationFilter(authenticationManager()))  // this is how we add a filter
                 .authorizeRequests()
                 .antMatchers("/","index").permitAll()
                 .antMatchers("/api/**").hasRole(STUDENT.name())
@@ -53,33 +53,35 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .antMatchers(HttpMethod.GET,"/management/api/**").hasAnyRole(ADMINTRAINEE.name(),ADMIN.name())
                 .anyRequest()
                 // each request has to be authenticated with username and password
-                .authenticated()
-                .and()
-                //.httpBasic();
-                .formLogin() // this changes from basics to form login
-                    .loginPage("/login")
-                    .permitAll()
-                    .defaultSuccessUrl("/courses",true)
-                    .passwordParameter("password")
-                    .usernameParameter("username")
-                .and()
-                .rememberMe()// default to 2 weeks
-                        .tokenValiditySeconds((int)TimeUnit.DAYS.toSeconds(21))
-                        .key("somethingverysecured") // this extend sessions to 21 days
-                        .rememberMeParameter("remember-me") // this come from the form login
-                .and()
-                .logout()
-                .logoutUrl("/logout")
-                .clearAuthentication(true)
-                .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID","remember-me")
-                .logoutSuccessUrl("/login"); // logout must be a post methodes
+                .authenticated();
+
+
+//                .and()
+//                //.httpBasic();
+//                .formLogin() // this changes from basics to form login
+//                    .loginPage("/login")
+//                    .permitAll()
+//                    .defaultSuccessUrl("/courses",true)
+//                    .passwordParameter("password")
+//                    .usernameParameter("username")
+//                .and()
+//                .rememberMe()// default to 2 weeks
+//                        .tokenValiditySeconds((int)TimeUnit.DAYS.toSeconds(21))
+//                        .key("somethingverysecured") // this extend sessions to 21 days
+//                        .rememberMeParameter("remember-me") // this come from the form login
+//                .and()
+//                .logout()
+//                .logoutUrl("/logout")
+//                .clearAuthentication(true)
+//                .invalidateHttpSession(true)
+//                .deleteCookies("JSESSIONID","remember-me")
+//                .logoutSuccessUrl("/login"); // logout must be a post methodes
     }
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider(){
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setPasswordEncoder(passwordEncoder);
-        provider.setUserDetailsService(applcationUserService);
+        provider.setUserDetailsService(applicationUserService);
         return provider;
     }
 
