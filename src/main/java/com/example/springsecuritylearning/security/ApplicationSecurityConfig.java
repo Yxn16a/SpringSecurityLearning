@@ -1,10 +1,11 @@
 package com.example.springsecuritylearning.security;
 
+import com.example.springsecuritylearning.auth.ApplicationUserService;
 import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,9 +15,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
-import static com.example.springsecuritylearning.security.ApplicationUserPermission.COURSE_WRITE;
+import java.util.concurrent.TimeUnit;
+
 import static com.example.springsecuritylearning.security.ApplicationUserRole.*;
 
 @Configuration
@@ -27,11 +28,12 @@ import static com.example.springsecuritylearning.security.ApplicationUserRole.*;
 public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationUserService applcationUserService;
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http
                 // to  matchers order  matters therefore list them as Delete,Post,put, get
-                //csrf(cross site request forgery proctect forgery)
+                //csrf(cross site request forgery protect forgery)
                 // csrf is good for token
                 //  .csrf().disable()  spring security stops forgery but when disables then no token
                 // is sent
@@ -44,7 +46,7 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
                 .authorizeRequests()
                 .antMatchers("/","index").permitAll()
                 .antMatchers("/api/**").hasRole(STUDENT.name())
-                // these were replacted by anotation on the methodes of @authorize
+                // these were replaced by annotation on the methods of @authorize
 //                .antMatchers(HttpMethod.DELETE,"/management/api/**").hasAnyAuthority(COURSE_WRITE.getPermission())
 //                .antMatchers(HttpMethod.POST,"/management/api/**").hasAnyAuthority(COURSE_WRITE.getPermission())
 //                .antMatchers(HttpMethod.PUT,"/management/api/**").hasAnyAuthority(COURSE_WRITE.getPermission())
@@ -53,39 +55,72 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
                 // each request has to be authenticated with username and password
                 .authenticated()
                 .and()
-                .httpBasic();
+                //.httpBasic();
+                .formLogin() // this changes from basics to form login
+                    .loginPage("/login")
+                    .permitAll()
+                    .defaultSuccessUrl("/courses",true)
+                    .passwordParameter("password")
+                    .usernameParameter("username")
+                .and()
+                .rememberMe()// default to 2 weeks
+                        .tokenValiditySeconds((int)TimeUnit.DAYS.toSeconds(21))
+                        .key("somethingverysecured") // this extend sessions to 21 days
+                        .rememberMeParameter("remember-me") // this come from the form login
+                .and()
+                .logout()
+                .logoutUrl("/logout")
+                .clearAuthentication(true)
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID","remember-me")
+                .logoutSuccessUrl("/login"); // logout must be a post methodes
     }
-// this is how we return data from the database
-    @Override
     @Bean
-    // this is a role based authentication
-    protected UserDetailsService userDetailsService() {
-        UserDetails annaSmithUser = User.builder()
-                .username("annasmith")
-                .password(passwordEncoder.encode("password")) // role based
-                 // authentication
-//                .roles(STUDENT.name())
-                .authorities(STUDENT.getGrantedAuthorities())
-                .build();
-        // create admin
-        UserDetails lindUser = User.builder()
-                .username("linda")
-                .password(passwordEncoder.encode("password123"))
-//                .roles(ADMIN.name())
-                .authorities(ADMIN.getGrantedAuthorities())
-                .build();
-
-        UserDetails TomUser = User.builder()
-                .username("tom")
-                .password(passwordEncoder.encode("password123"))
-//                .roles(ADMINTRAINEE.name()) //
-                .authorities(ADMINTRAINEE.getGrantedAuthorities())
-                .build();
-
-        return new InMemoryUserDetailsManager(
-                annaSmithUser,
-                lindUser,
-                TomUser
-        );
+    public DaoAuthenticationProvider daoAuthenticationProvider(){
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setPasswordEncoder(passwordEncoder);
+        provider.setUserDetailsService(applcationUserService);
+        return provider;
     }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.authenticationProvider(daoAuthenticationProvider());
+    }
+
+    // this is how we return data from the inmemory database
+    //THE FOLLOWING METHOD IS NOT NEEDED BECAUSE WE IMPLEMENTED OURS IN
+    //FAKEAPPLICATIONUSERDao
+//    @Override
+//    @Bean
+//    // this is a role based authentication
+//    protected UserDetailsService userDetailsService() {
+//        UserDetails annaSmithUser = User.builder()
+//                .username("annasmith")
+//                .password(passwordEncoder.encode("password")) // role based
+//                 // authentication
+////                .roles(STUDENT.name())
+//                .authorities(STUDENT.getGrantedAuthorities())
+//                .build();
+//        // create admin
+//        UserDetails lindUser = User.builder()
+//                .username("linda")
+//                .password(passwordEncoder.encode("password123"))
+////                .roles(ADMIN.name())
+//                .authorities(ADMIN.getGrantedAuthorities())
+//                .build();
+//
+//        UserDetails TomUser = User.builder()
+//                .username("tom")
+//                .password(passwordEncoder.encode("password123"))
+////                .roles(ADMINTRAINEE.name()) //
+//                .authorities(ADMINTRAINEE.getGrantedAuthorities())
+//                .build();
+//
+//        return new InMemoryUserDetailsManager(
+//                annaSmithUser,
+//                lindUser,
+//                TomUser
+//        );
+//    }
 }
